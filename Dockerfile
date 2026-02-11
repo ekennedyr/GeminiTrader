@@ -1,9 +1,12 @@
-# Alterado de 3.9-slim para 3.11-slim para compatibilidade moderna
-FROM python:3.11-slim
+# Atualizado para Python 3.12 conforme exigido pelos logs
+FROM python:3.12-slim
 
 WORKDIR /app
 
-# Instala ferramentas básicas de build que às vezes faltam no slim
+# Instala o GIT (necessário para baixar o pandas_ta atualizado)
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+
+# Atualiza o pip e ferramentas de build
 RUN pip install --upgrade pip setuptools wheel
 
 COPY requirements.txt .
