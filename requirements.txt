@@ -1,4 +1,3 @@
-pandas
-pandas_ta
+flask
 google-generativeai
-schedule
+python-dotenv
