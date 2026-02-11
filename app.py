@@ -122,8 +122,8 @@ def execute_logic():
     except Exception as e:
         print(f"Erro ao processar resposta da IA: {e}")
 
-# Loop Principal
-if __name__ == "__main__":
-    while True:
-        execute_logic()
-        time.sleep(60 * 60) # Roda a cada 1 hora (fechamento de vela H1)
+if __name__ == '__main__':
+    # O Coolify/Docker geralmente passa a porta via variável de ambiente PORT
+    port = int(os.environ.get("PORT", 5000)) 
+    app.run(host='0.0.0.0', port=port)
+
