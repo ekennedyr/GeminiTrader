@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  # Serviço 1: MetaTrader 5 (Wine)
+  mt5:
+    image: gmag11/metatrader5:latest
+    container_name: mt5_terminal
+    environment:
+      - MT5_LOGIN=${MT5_LOGIN}       # Definir nas variaveis de ambiente do Coolify
+      - MT5_PASSWORD=${MT5_PASSWORD} # Definir nas variaveis de ambiente do Coolify
+      - MT5_SERVER=${MT5_SERVER}     # Ex: MetaQuotes-Demo
+    volumes:
+      # Mapeia a pasta Common do MT5 (onde ele pode escrever arquivos) para o volume
+      - shared_data:/home/wine/.wine/drive_c/users/wine/AppData/Roaming/MetaQuotes/Terminal/Common/Files
+      # Opcional: Persistir config do MT5
+      - mt5_config:/home/wine/.wine/drive_c/Program Files/MetaTrader 5
+    ports:
+      - "5900:5900" # VNC para você visualizar o MT5 e instalar o EA
+    restart: unless-stopped
+
+  # Serviço 2: Cérebro Python
+  brain:
+    build: .
+    container_name: ai_brain
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    volumes:
+      # Mapeia o mesmo volume para a pasta do script ler
+      - shared_data:/mnt/mt5_data
+    depends_on:
+      - mt5
+    restart: unless-stopped
+
+volumes:
+  shared_data:
+  mt5_config:
