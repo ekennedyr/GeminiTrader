@@ -1,32 +1,30 @@
-# Usamos a imagem COMPLETA (não a slim) para garantir compatibilidade máxima
-# Com 16GB de RAM, não precisamos economizar espaço aqui.
-FROM python:3.11
+# Usamos Python 3.10, que é mais estável para libs financeiras antigas
+FROM python:3.10
 
 WORKDIR /app
 
-# 1. Atualiza pip e ferramentas de instalação
+# 1. Atualiza ferramentas de build
 RUN pip install --upgrade pip setuptools wheel
 
-# 2. O GRANDE TRUQUE: Instalamos o Numpy antigo (antes da versão 2.0)
-# O pandas-ta quebra se usar o Numpy 2.0+
-RUN pip install "numpy<2.0.0"
+# 2. A "MÁQUINA DO TEMPO":
+# Instalamos versões antigas específicas que sabemos que funcionam com o pandas-ta.
+# O pandas-ta quebra com o Pandas 2.0+, então forçamos uma versão 1.5.x
+RUN pip install "numpy<1.26.0"
+RUN pip install "pandas<2.0.0"
 
-# 3. Instalamos o pandas (ele vai respeitar o numpy antigo)
-RUN pip install pandas
+# 3. Agora instalamos o pandas-ta (Usando hífen, que é o padrão do PyPI)
+RUN pip install pandas-ta
 
-# 4. Agora sim instalamos o pandas-ta (sem cache para evitar lixo antigo)
-RUN pip install --no-cache-dir pandas_ta
-
-# 5. Restante das dependências
+# 4. Outras dependências
 RUN pip install google-generativeai schedule
 
-# 6. Copia o script
-# ATENÇÃO: Confirme se no seu GitHub o arquivo se chama brain.py ou main.py
+# 5. Copia o script 
+# (IMPORTANTE: Verifique se no seu GitHub o arquivo se chama 'brain.py' ou 'main.py')
 # Se for main.py, mude nas duas linhas abaixo!
 COPY brain.py .
 
-# 7. Cria diretório de troca
+# 6. Cria diretório de troca
 RUN mkdir -p /mnt/mt5_data
 
-# 8. Executa
+# 7. Executa
 CMD ["python", "brain.py"]
