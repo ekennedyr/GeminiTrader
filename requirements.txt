@@ -1,8 +1,4 @@
-fastapi
-uvicorn
 pandas
-numpy
-# Instala direto do GitHub para garantir compatibilidade e correção de bugs
-git+https://github.com/twopirllc/pandas-ta.git@development
+pandas_ta
 google-generativeai
-pydantic
+schedule
