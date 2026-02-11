@@ -1,96 +1,129 @@
 import os
+import json
+import time
 import pandas as pd
 import pandas_ta as ta
 import google.generativeai as genai
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from typing import List
+from datetime import datetime
 
-# Configuração
-app = FastAPI()
-GENAI_API_KEY = os.environ.get("GEMINI_API_KEY")
-genai.configure(api_key=GENAI_API_KEY)
+# CONFIGURAÇÕES
+API_KEY = os.getenv("GEMINI_API_KEY")
+SHARED_DIR = "/mnt/mt5_data/NeuroData" # Caminho dentro do container Python
+DATA_FILE = os.path.join(SHARED_DIR, "market_data.json")
+CMD_FILE = os.path.join(SHARED_DIR, "commands.json")
 
-# Modelo de dados recebido do MT5
-class Candle(BaseModel):
-    time: str
-    open: float
-    high: float
-    low: float
-    close: float
-    tick_volume: int
+# Configuração Gemini
+genai.configure(api_key=API_KEY)
+# Usando Flash para triagem rápida conforme PDF 
+model = genai.GenerativeModel('gemini-1.5-flash') 
 
-class MarketData(BaseModel):
-    symbol: str
-    candles_h1: List[Candle]
-    candles_h4: List[Candle]
+def load_data():
+    try:
+        with open(DATA_FILE, 'r') as f:
+            data = json.load(f)
+        df = pd.DataFrame(data['candles'])
+        # Conversão de tipos
+        cols = ['o', 'h', 'l', 'c']
+        df[cols] = df[cols].astype(float)
+        return df, data['bid'], data['ask'], data['symbol']
+    except Exception as e:
+        print(f"Erro ao ler dados: {e}")
+        return None, 0, 0, ""
 
 def calculate_indicators(df):
-    # Indicadores "Duros" para evitar alucinação [cite: 82]
-    df['EMA_200'] = ta.ema(df['close'], length=200)
-    df['RSI'] = ta.rsi(df['close'], length=14)
-    df['ATR'] = ta.atr(df['high'], df['low'], df['close'], length=14)
-    return df
+    # Indicadores conforme PDF 
+    df['EMA_50'] = ta.ema(df['c'], length=50)
+    df['EMA_200'] = ta.ema(df['c'], length=200)
+    df['RSI'] = ta.rsi(df['c'], length=14)
+    df['ATR'] = ta.atr(df['h'], df['l'], df['c'], length=14)
+    return df.tail(50) # Enviar apenas as ultimas 50 para a IA para economizar tokens
 
-def get_gemini_decision(symbol, df_h1, df_h4):
-    last_h1 = df_h1.iloc[-1]
-    last_h4 = df_h4.iloc[-1]
+def generate_prompt(df, symbol):
+    # Serializa dados para a IA
+    csv_data = df.to_csv(index=False)
     
-    # Prompt Engenharia Avançada (Chain-of-Thought) [cite: 102, 105]
+    # Prompt de Engenharia (Chain-of-Thought) 
     prompt = f"""
-    Atue como um Trader Institucional de Forex especialista em Smart Money Concepts (SMC).
-    Analise o par {symbol}.
-    
-    DADOS TÉCNICOS (H4 - Contexto):
-    - Preço Atual: {last_h4['close']}
-    - EMA 200: {last_h4['EMA_200']:.5f} (Tendência: {"ALTA" if last_h4['close'] > last_h4['EMA_200'] else "BAIXA"})
-    
-    DADOS TÉCNICOS (H1 - Gatilho):
-    - RSI (14): {last_h1['RSI']:.2f}
-    - ATR (Volatilidade): {last_h1['ATR']:.5f}
+    Atue como um Trader Institucional de Forex focado em SMC (Smart Money Concepts).
+    Par: {symbol}
+    Dados Recentes (H1):
+    {csv_data}
     
     Sua tarefa:
-    1. Identifique a estrutura de mercado no H4 (Higher Highs/Lows?).
-    2. Procure por Fair Value Gaps (FVG) recentes ou quebras de estrutura (MSS) no H1.
-    3. Responda ESTRITAMENTE em JSON.
+    1. Analise a Tendência (EMA 50 vs 200).
+    2. Identifique Fair Value Gaps (FVG) recentes e quebras de estrutura.
+    3. Verifique o RSI para divergências.
+    4. Decida se há uma oportunidade de SWING TRADE para as próximas 24h.
     
-    Regras de Segurança (Hard Filters):
-    - NÃO compre se preço < EMA 200 no H4.
-    - NÃO venda se preço > EMA 200 no H4.
+    Regras de Risco:
+    - Só compre se Preço > EMA 200 (Preferencialmente).
+    - Stop Loss deve ser técnico (abaixo/acima do último swing).
     
-    Formato JSON esperado:
+    Retorne APENAS um JSON estrito neste formato, sem markdown:
     {{
-        "decision": "BUY" ou "SELL" ou "HOLD",
-        "sl_pips": 30,
-        "tp_pips": 60,
-        "confidence": 0 a 100,
-        "reasoning": "Explicação breve focada em SMC"
+        "decision": "BUY" | "SELL" | "HOLD",
+        "confidence": 0-100,
+        "stop_loss": preço_float,
+        "take_profit": preço_float,
+        "reason": "resumo curto"
     }}
     """
+    return prompt
+
+def execute_logic():
+    print(f"[{datetime.now()}] Iniciando ciclo de análise...")
     
-    model = genai.GenerativeModel('gemini-1.5-flash') # Usando Flash para economia e velocidade 
-    response = model.generate_content(prompt, generation_config={"response_mime_type": "application/json"})
-    return response.text
+    if not os.path.exists(DATA_FILE):
+        print("Aguardando dados do MT5...")
+        return
 
-@app.post("/analyze")
-async def analyze_market(data: MarketData):
+    df, bid, ask, symbol = load_data()
+    if df is None: return
+
+    df = calculate_indicators(df)
+    
+    # Lógica de Pré-Filtro (Python Hard-Coded) 
+    # Economiza chamadas de API se o mercado estiver lateral
+    atr = df['ATR'].iloc[-1]
+    if atr < 0.0005: # Exemplo: volatilidade muito baixa
+        print("Volatilidade muito baixa, pulando IA.")
+        return
+
+    # Consulta IA
+    response = model.generate_content(generate_prompt(df, symbol))
+    
     try:
-        # Converter dados para DataFrame
-        df_h1 = pd.DataFrame([c.dict() for c in data.candles_h1])
-        df_h4 = pd.DataFrame([c.dict() for c in data.candles_h4])
+        # Limpeza básica do JSON retornado pela IA
+        clean_json = response.text.replace("```json", "").replace("```", "")
+        decision_data = json.loads(clean_json)
         
-        # Calcular indicadores
-        df_h1 = calculate_indicators(df_h1)
-        df_h4 = calculate_indicators(df_h4)
+        print(f"IA Decisão: {decision_data['decision']} ({decision_data['confidence']}%)")
         
-        # Obter decisão da IA
-        decision_json = get_gemini_decision(data.symbol, df_h1, df_h4)
-        
-        return {"status": "success", "analysis": decision_json}
-        
+        # Filtro de Confiança e Execução 
+        if decision_data['decision'] in ["BUY", "SELL"] and decision_data['confidence'] > 85:
+            
+            # Cálculo de Lote (Gestão de Risco) 
+            # Simplificado: 0.01 fixo para testes, implemente lógica de % saldo depois
+            volume = 0.01 
+            
+            command = {
+                "action": decision_data['decision'],
+                "sl": decision_data['stop_loss'],
+                "tp": decision_data['take_profit'],
+                "volume": volume,
+                "timestamp": time.time()
+            }
+            
+            # Escreve comando para o MT5
+            with open(CMD_FILE, 'w') as f:
+                json.dump(command, f)
+            print("Comando enviado para MT5!")
+            
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"Erro ao processar resposta da IA: {e}")
 
+# Loop Principal
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    while True:
+        execute_logic()
+        time.sleep(60 * 60) # Roda a cada 1 hora (fechamento de vela H1)
