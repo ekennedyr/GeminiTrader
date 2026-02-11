@@ -1,7 +1,8 @@
 fastapi
 uvicorn
-pandas<2.2.0
-numpy<2.0.0
-pandas_ta
+pandas
+numpy
+# Instala direto do GitHub para garantir compatibilidade e correção de bugs
+git+https://github.com/twopirllc/pandas-ta.git@development
 google-generativeai
 pydantic
