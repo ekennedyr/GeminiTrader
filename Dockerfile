@@ -2,14 +2,14 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Instala dependencias
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Instala as bibliotecas DIRETAMENTE aqui (mais seguro)
+RUN pip install --no-cache-dir pandas pandas-ta google-generativeai schedule
 
-# Copia o código
+# Copia o seu script (Se o nome no GitHub for brain.py)
 COPY brain.py .
 
 # Cria diretório de troca de dados
 RUN mkdir -p /mnt/mt5_data
 
+# Executa o script
 CMD ["python", "brain.py"]
