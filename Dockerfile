@@ -1,21 +1,15 @@
-# Atualizado para Python 3.12 conforme exigido pelos logs
-FROM python:3.12-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Instala o GIT (necessário para baixar o pandas_ta atualizado)
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
-
-# Atualiza o pip e ferramentas de build
-RUN pip install --upgrade pip setuptools wheel
-
+# Instala dependencias
 COPY requirements.txt .
-
-# Instala as dependências
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY main.py .
+# Copia o código
+COPY brain.py .
 
-EXPOSE 8000
+# Cria diretório de troca de dados
+RUN mkdir -p /mnt/mt5_data
 
-CMD ["python", "main.py"]
+CMD ["python", "brain.py"]
