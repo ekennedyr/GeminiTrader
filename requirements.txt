@@ -1,3 +1,5 @@
 flask
 google-generativeai
 python-dotenv
+pandas
+pandas_ta
