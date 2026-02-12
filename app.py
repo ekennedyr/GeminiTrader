@@ -10,7 +10,7 @@ app = Flask(__name__)
 # Configura Gemini
 try:
     genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-2.5-flash')
 except Exception as e:
     print(f"Erro API: {e}")
 
@@ -42,3 +42,4 @@ def teste_conexao():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
