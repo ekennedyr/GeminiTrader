@@ -12,7 +12,7 @@ load_dotenv()
 
 # --- 1. CONFIGURAÇÃO GERAL E VARIÁVEIS ---
 API_KEY = os.getenv('GEMINI_API_KEY')
-MODEL_NAME = os.getenv('GEMINI_MODEL', 'gemini-1.5-flash')
+MODEL_NAME = os.getenv('GEMINI_MODEL')
 PORT = int(os.environ.get("PORT", 5000))
 
 # Configuração de Log
@@ -175,3 +175,4 @@ def analisar():
 # --- 4. INICIALIZAÇÃO ---
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=PORT)
+
