@@ -122,6 +122,9 @@ def health_check():
 def analisar():
     try:
         data = request.get_json()
+        if data is None:
+            logger.error("Falha ao decodificar JSON. O corpo da requisição pode estar vazio ou malformado.")
+            return "HOLD", 200
         
         # Verifica se é apenas um ping de teste do EA
         if data.get('test_connection') == True:
@@ -175,4 +178,5 @@ def analisar():
 # --- 4. INICIALIZAÇÃO ---
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=PORT)
+
 
